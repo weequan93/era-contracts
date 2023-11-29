@@ -1,11 +1,13 @@
 import { Command } from "commander";
-import { Wallet } from "ethers";
+import {  } from "ethers";
 import { Deployer } from "../src.ts/deploy";
 import * as fs from "fs";
 import * as path from "path";
 import { web3Provider } from "./utils";
+import { Provider, Wallet } from "zksync-web3";
+import * as hre from "hardhat";
 
-const provider = web3Provider();
+// const provider = web3Provider();
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, "etc/test_config/constant");
 const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: "utf-8" }));
 
@@ -24,6 +26,7 @@ async function main() {
     .option("--private-key <private-key>")
     .option("--nonce <nonce>")
     .action(async (cmd) => {
+      const provider = new Provider((hre.network.config as any).ethNetwork);
       const wallet = cmd.privateKey
         ? new Wallet(cmd.privateKey, provider)
         : Wallet.fromMnemonic(

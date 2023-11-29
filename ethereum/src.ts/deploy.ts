@@ -1,6 +1,6 @@
 import * as hardhat from "hardhat";
 import "@nomiclabs/hardhat-ethers";
-
+import { Deployer as _Deployer } from "@matterlabs/hardhat-zksync-deploy";
 import type { BigNumberish, providers, Signer, Wallet } from "ethers";
 import { ethers } from "ethers";
 import { Interface, hexlify } from "ethers/lib/utils";
@@ -88,12 +88,16 @@ export class Deployer {
   private deployWallet: Wallet;
   private verbose: boolean;
   private ownerAddress: string;
+  private _deployer: _Deployer
 
   constructor(config: DeployerConfig) {
     this.deployWallet = config.deployWallet;
     this.verbose = config.verbose != null ? config.verbose : false;
     this.addresses = deployedAddressesFromEnv();
     this.ownerAddress = config.ownerAddress != null ? config.ownerAddress : this.deployWallet.address;
+
+    // @ts-ignore
+    this._deployer = new _Deployer(hardhat, config.deployWallet);
   }
 
   public async initialProxyDiamondCut() {
@@ -152,16 +156,11 @@ export class Deployer {
       console.log("Deploying Create2 factory");
     }
 
-    const contractFactory = await hardhat.ethers.getContractFactory("SingletonFactory", {
-      signer: this.deployWallet,
-    });
-
-    const create2Factory = await contractFactory.deploy(...[ethTxOptions]);
-    const rec = await create2Factory.deployTransaction.wait();
+    const artifact = await this._deployer.loadArtifact("SingletonFactory")
+    const create2Factory = await this._deployer.deploy(artifact);
 
     if (this.verbose) {
       console.log(`CONTRACTS_CREATE2_FACTORY_ADDR=${create2Factory.address}`);
-      console.log(`Create2 factory deployed, gasUsed: ${rec.gasUsed.toString()}`);
     }
 
     this.addresses.Create2Factory = create2Factory.address;
@@ -177,7 +176,7 @@ export class Deployer {
     libraries?: any
   ) {
     const result = await deployViaCreate2(
-      this.deployWallet,
+      this._deployer,
       contractName,
       args,
       create2Salt,
@@ -394,6 +393,7 @@ export class Deployer {
     ethTxOptions.gasLimit ??= 10_000_000;
 
     const chainId = getNumberFromEnv("ETH_CLIENT_CHAIN_ID");
+    console.error("chainId", chainId)
     const initialDiamondCut = await this.initialProxyDiamondCut();
     const contractAddress = await this.deployViaCreate2(
       "DiamondProxy",
@@ -401,7 +401,6 @@ export class Deployer {
       create2Salt,
       ethTxOptions
     );
-
     if (this.verbose) {
       console.log(`CONTRACTS_DIAMOND_PROXY_ADDR=${contractAddress}`);
     }
@@ -413,14 +412,14 @@ export class Deployer {
     nonce = nonce ? parseInt(nonce) : await this.deployWallet.getTransactionCount();
 
     // deploy zkSync contract
-    const independentZkSyncDeployPromises = [
-      this.deployMailboxFacet(create2Salt, { gasPrice, nonce }),
-      this.deployExecutorFacet(create2Salt, { gasPrice, nonce: nonce + 1 }),
-      this.deployAdminFacet(create2Salt, { gasPrice, nonce: nonce + 2 }),
-      this.deployGettersFacet(create2Salt, { gasPrice, nonce: nonce + 3 }),
-      this.deployDiamondInit(create2Salt, { gasPrice, nonce: nonce + 4 }),
-    ];
-    await Promise.all(independentZkSyncDeployPromises);
+    // const independentZkSyncDeployPromises = [
+      await this.deployMailboxFacet(create2Salt, { gasPrice, nonce }),
+        await this.deployExecutorFacet(create2Salt, { gasPrice, nonce: nonce + 1 }),
+        await this.deployAdminFacet(create2Salt, { gasPrice, nonce: nonce + 2 }),
+        await this.deployGettersFacet(create2Salt, { gasPrice, nonce: nonce + 3 }),
+        await this.deployDiamondInit(create2Salt, { gasPrice, nonce: nonce + 4 }),
+    // ];
+    // await Promise.all(independentZkSyncDeployPromises);
     nonce += 5;
 
     await this.deployDiamondProxy(create2Salt, { gasPrice, nonce });
@@ -459,7 +458,7 @@ export class Deployer {
   }
 
   public async deployMulticall3(create2Salt: string, ethTxOptions: ethers.providers.TransactionRequest) {
-    ethTxOptions.gasLimit ??= 10_000_000;
+    // ethTxOptions.gasLimit ??= 10_000_000;
     const contractAddress = await this.deployViaCreate2("Multicall3", [], create2Salt, ethTxOptions);
 
     if (this.verbose) {

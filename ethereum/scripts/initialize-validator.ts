@@ -1,11 +1,12 @@
 import { Command } from "commander";
-import { Wallet } from "ethers";
+import {  } from "ethers";
 import { Deployer } from "../src.ts/deploy";
 import { formatUnits, parseUnits } from "ethers/lib/utils";
 import { web3Provider } from "./utils";
-
+import { Provider, Wallet } from "zksync-web3";
 import * as fs from "fs";
 import * as path from "path";
+import * as hre from "hardhat";
 
 const provider = web3Provider();
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, "etc/test_config/constant");
@@ -19,6 +20,7 @@ async function main() {
     .option("--gas-price <gas-price>")
     .option("--nonce <nonce>")
     .action(async (cmd) => {
+      const provider = new Provider((hre.network.config as any).ethNetwork);
       const deployWallet = cmd.privateKey
         ? new Wallet(cmd.privateKey, provider)
         : Wallet.fromMnemonic(

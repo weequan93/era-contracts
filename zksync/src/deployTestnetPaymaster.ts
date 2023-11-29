@@ -1,10 +1,12 @@
 import { Command } from "commander";
-import { ethers, Wallet } from "ethers";
+import { ethers } from "ethers";
 import { computeL2Create2Address, create2DeployFromL1, getNumberFromEnv } from "./utils";
 import { web3Provider } from "../../ethereum/scripts/utils";
 import * as fs from "fs";
 import * as path from "path";
 import * as hre from "hardhat";
+import { Provider, Wallet } from "zksync-web3";
+
 
 const provider = web3Provider();
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, "etc/test_config/constant");
@@ -17,7 +19,8 @@ const priorityTxMaxGasLimit = getNumberFromEnv("CONTRACTS_PRIORITY_TX_MAX_GAS_LI
 // to running this script.
 async function main() {
   const program = new Command();
-
+  const provider = new Provider((hre.network.config as any).ethNetwork);
+  
   program.version("0.1.0").name("deploy-testnet-paymaster").description("Deploys the testnet paymaster to L2");
 
   program.option("--private-key <private-key>").action(async (cmd: Command) => {

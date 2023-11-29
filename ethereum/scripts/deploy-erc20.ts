@@ -1,18 +1,23 @@
-import * as hardhat from "hardhat";
-import "@nomiclabs/hardhat-ethers";
+
+
 import { Command } from "commander";
-import { Wallet } from "ethers";
-import { parseEther } from "ethers/lib/utils";
+import * as hre from "hardhat";
+import { ethers } from "ethers";
 import { web3Provider } from "./utils";
 import * as fs from "fs";
 import * as path from "path";
+import { Deployer } from "@matterlabs/hardhat-zksync-deploy";
+import { TestnetERC20Token__factory } from "../typechain-types/factories/cache-zk/solpp-generated-contracts/dev-contracts/TestnetERC20Token__factory"
+import { Provider, Wallet } from "zksync-web3";
+import { formatUnits, parseEther, parseUnits } from "ethers/lib/utils";
+import { BigNumber } from "ethers";
 
 const DEFAULT_ERC20 = "TestnetERC20Token";
 
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, "etc/test_config/constant");
 const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: "utf-8" }));
 
-const provider = web3Provider();
+// const provider = web3Provider();
 
 type Token = {
   address: string | null;
@@ -25,26 +30,42 @@ type TokenDescription = Token & {
   implementation?: string;
 };
 
+export function l1RpcUrl() {
+  return process.env.ETH_CLIENT_WEB3_URL as string;
+}
+
+export function l2RpcUrl() {
+  return process.env.API_WEB3_JSON_RPC_HTTP_URL as string;
+}
+
+
 async function deployToken(token: TokenDescription, wallet: Wallet): Promise<Token> {
+
   token.implementation = token.implementation || DEFAULT_ERC20;
-  const tokenFactory = await hardhat.ethers.getContractFactory(token.implementation, wallet);
-  const args = token.implementation !== "WETH9" ? [token.name, token.symbol, token.decimals] : [];
-  const erc20 = await tokenFactory.deploy(...args, { gasLimit: 5000000 });
-  await erc20.deployTransaction.wait();
+
+  // @ts-ignore
+  const deployer = new Deployer(hre, wallet);
+  const artifact = token.implementation ? await deployer.loadArtifact(token.implementation) : await deployer.loadArtifact("TestnetERC20Token")
+
+  let params: any = [token.name, token.symbol, BigNumber.from(token.decimals)]
+  if (token.name == "Wrapped Ether") {
+    params = []
+  }
+
+  const deploymentFee = await deployer.estimateDeployFee(artifact, params);
+
+  const parsedFee = ethers.utils.formatEther(deploymentFee.toString());
+  console.error(`The deployment is estimated to cost ${parsedFee} ETH`);
+ 
+  const t = await deployer.deploy(artifact, params);
+  console.error("t", token.name,[params], t.address)
+  console.error(`${token.name} ${artifact.contractName} was deployed to ${t.address}`);
 
   if (token.implementation !== "WETH9") {
-    await erc20.mint(wallet.address, parseEther("3000000000"));
-  }
-  for (let i = 0; i < 10; ++i) {
-    const testWallet = Wallet.fromMnemonic(ethTestConfig.test_mnemonic as string, "m/44'/60'/0'/0/" + i).connect(
-      provider
-    );
-    if (token.implementation !== "WETH9") {
-      await erc20.mint(testWallet.address, parseEther("3000000000"));
-    }
+    await t.mint(wallet.address, parseEther("3000000000"));
   }
 
-  token.address = erc20.address;
+  token.address = t.address;
 
   // Remove the unneeded field
   if (token.implementation) {
@@ -75,6 +96,7 @@ async function main() {
         implementation: cmd.implementation,
       };
 
+      const provider = new Provider((hre.network.config as any).ethNetwork);
       const wallet = cmd.privateKey
         ? new Wallet(cmd.privateKey, provider)
         : Wallet.fromMnemonic(ethTestConfig.mnemonic, "m/44'/60'/0'/0/1").connect(provider);
@@ -89,6 +111,8 @@ async function main() {
     .action(async (tokens_json: string, cmd) => {
       const tokens: Array<TokenDescription> = JSON.parse(tokens_json);
       const result = [];
+
+      const provider = new Provider((hre.network.config as any).ethNetwork);
 
       const wallet = cmd.privateKey
         ? new Wallet(cmd.privateKey, provider)

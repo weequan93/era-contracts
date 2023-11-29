@@ -1,13 +1,15 @@
 import { Command } from "commander";
-import { ethers, Wallet } from "ethers";
+import { ethers } from "ethers";
 import { Deployer } from "../src.ts/deploy";
 import { formatUnits, parseUnits } from "ethers/lib/utils";
 import { web3Provider, applyL1ToL2Alias, getNumberFromEnv, REQUIRED_L2_GAS_PRICE_PER_PUBDATA } from "./utils";
+import * as hre from "hardhat";
+import { Provider, Wallet } from "zksync-web3";
 
 import * as fs from "fs";
 import * as path from "path";
 
-const provider = web3Provider();
+// const provider = web3Provider();
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, "etc/test_config/constant");
 const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: "utf-8" }));
 
@@ -40,6 +42,7 @@ async function main() {
     .option("--gas-price <gas-price>")
     .option("--nonce <nonce>")
     .action(async (cmd) => {
+      const provider = new Provider((hre.network.config as any).ethNetwork);
       const deployWallet = cmd.privateKey
         ? new Wallet(cmd.privateKey, provider)
         : Wallet.fromMnemonic(
@@ -48,7 +51,7 @@ async function main() {
           ).connect(provider);
       console.log(`Using deployer wallet: ${deployWallet.address}`);
 
-      const gasPrice = cmd.gasPrice ? parseUnits(cmd.gasPrice, "gwei") : await provider.getGasPrice();
+      const gasPrice = 304420605
       console.log(`Using gas price: ${formatUnits(gasPrice, "gwei")} gwei`);
 
       const nonce = cmd.nonce ? parseInt(cmd.nonce) : await deployWallet.getTransactionCount();

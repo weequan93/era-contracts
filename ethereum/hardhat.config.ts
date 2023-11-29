@@ -1,10 +1,14 @@
+import "@matterlabs/hardhat-zksync-solc";
+
 import "@nomiclabs/hardhat-ethers";
 import "@nomiclabs/hardhat-etherscan";
 import "@nomiclabs/hardhat-solpp";
-import "@nomiclabs/hardhat-waffle";
+// import "@nomiclabs/hardhat-waffle";
 import "hardhat-contract-sizer";
 import "hardhat-gas-reporter";
-import "hardhat-typechain";
+import '@typechain/hardhat'
+import '@nomicfoundation/hardhat-chai-matchers'
+
 import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/task-names";
 import { task } from "hardhat/config";
 import "solidity-coverage";
@@ -29,7 +33,8 @@ const prodConfig = {
   SECURITY_COUNCIL_APPROVALS_FOR_EMERGENCY_UPGRADE: 1,
   PRIORITY_TX_MAX_GAS_LIMIT,
   DEPLOY_L2_BRIDGE_COUNTERPART_GAS_LIMIT,
-  DUMMY_VERIFIER: false,
+  // DUMMY_VERIFIER: false,
+  zksync: true,
 };
 const testnetConfig = {
   UPGRADE_NOTICE_PERIOD: 0,
@@ -38,7 +43,8 @@ const testnetConfig = {
   SECURITY_COUNCIL_APPROVALS_FOR_EMERGENCY_UPGRADE: 1,
   PRIORITY_TX_MAX_GAS_LIMIT,
   DEPLOY_L2_BRIDGE_COUNTERPART_GAS_LIMIT,
-  DUMMY_VERIFIER: true,
+  // DUMMY_VERIFIER: true,
+  zksync: true,
 };
 const testConfig = {
   UPGRADE_NOTICE_PERIOD: 0,
@@ -46,11 +52,13 @@ const testConfig = {
   SECURITY_COUNCIL_APPROVALS_FOR_EMERGENCY_UPGRADE: 2,
   PRIORITY_TX_MAX_GAS_LIMIT,
   DEPLOY_L2_BRIDGE_COUNTERPART_GAS_LIMIT,
-  DUMMY_VERIFIER: true,
+  // DUMMY_VERIFIER: true,
+  zksync: true,
 };
 const localConfig = {
   ...prodConfig,
-  DUMMY_VERIFIER: true,
+  // DUMMY_VERIFIER: true,
+  zksync: true,
 };
 
 const contractDefs = {
@@ -64,56 +72,66 @@ const contractDefs = {
 };
 
 export default {
-  defaultNetwork: "env",
-  solidity: {
-    version: "0.8.20",
+  zksolc: {
+    version: "1.3.14",
+    compilerSource: "binary",
     settings: {
-      optimizer: {
-        enabled: true,
-        runs: 9999999,
-      },
-      outputSelection: {
-        "*": {
-          "*": ["storageLayout"],
-        },
-      },
+      isSystem: true,
     },
   },
-  contractSizer: {
-    runOnCompile: false,
-    except: ["dev-contracts", "zksync/upgrade-initializers", "zksync/libraries", "common/libraries"],
+  solidity: {
+    version: "0.8.20",
   },
-  paths: {
-    sources: "./contracts",
-  },
+
+  defaultNetwork: "localhost",
+  // contractSizer: {
+  //   runOnCompile: false,
+  //   except: ["dev-contracts", "zksync/upgrade-initializers", "zksync/libraries", "common/libraries"],
+  // },
+  // paths: {
+  //   sources: "./contracts",
+  // },
   solpp: {
     defs: (() => {
       const defs = process.env.CONTRACT_TESTS ? contractDefs.test : contractDefs[process.env.CHAIN_ETH_NETWORK];
 
       return {
         ...systemParams,
-        ...defs,
+        ...testConfig,
       };
     })(),
   },
   networks: {
-    env: {
-      url: process.env.ETH_CLIENT_WEB3_URL?.split(",")[0],
+    localhost: {
+      // era-test-node default url
+      url: "http://127.0.0.1:3050",
+      ethNetwork: "https://testnet.era.zksync.dev",
+      zksync: true,
     },
-    hardhat: {
-      allowUnlimitedContractSize: false,
-      forking: {
-        url: "https://eth-goerli.g.alchemy.com/v2/" + process.env.ALCHEMY_KEY,
-        enabled: process.env.TEST_CONTRACTS_FORK === "1",
-      },
+    zkSyncTestnet: {
+      url: "https://zksync2-testnet.zksync.dev",
+      ethNetwork: "goerli",
+      zksync: true,
+      // contract verification endpoint
+      verifyURL: "https://zksync2-testnet-explorer.zksync.dev/contract_verification",
+    },
+    zksyncMainnet: {
+      url: "https://mainnet.era.zksync.io",
+      ethNetwork: "mainnet",
+      zksync: true,
+      // contract verification endpoint
+      verifyURL: "https://zksync2-mainnet-explorer.zksync.io/contract_verification",
     },
   },
-  etherscan: {
-    apiKey: process.env.MISC_ETHERSCAN_API_KEY,
-  },
-  gasReporter: {
-    enabled: true,
-  },
+  // etherscan: {
+  //   apiKey: process.env.MISC_ETHERSCAN_API_KEY,
+  // },
+  // gasReporter: {
+  //   enabled: true,
+  // },
+  typechain: {
+    target: "ethers-v5",
+  }
 };
 
 task("solpp", "Preprocess Solidity source files").setAction(async (_, hre) =>

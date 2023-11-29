@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { ethers, Wallet } from "ethers";
+import { ethers } from "ethers";
 import { Deployer } from "../src.ts/deploy";
 import { formatUnits, parseUnits } from "ethers/lib/utils";
 import {
@@ -13,8 +13,11 @@ import {
 
 import * as fs from "fs";
 import * as path from "path";
+import { Provider, Wallet } from "zksync-web3";
+import * as hre from "hardhat";
 
-const provider = web3Provider();
+// const provider = web3Provider();
+const provider = new Provider((hre.network.config as any).ethNetwork);
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, "etc/test_config/constant");
 const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: "utf-8" }));
 
@@ -80,17 +83,21 @@ async function main() {
         deployWallet,
         verbose: true,
       });
+      console.error("P 1")
 
       const zkSync = deployer.zkSyncContract(deployWallet);
       const erc20Bridge = cmd.erc20Bridge
         ? deployer.defaultERC20Bridge(deployWallet).attach(cmd.erc20Bridge)
         : deployer.defaultERC20Bridge(deployWallet);
-
+      console.error("P 2")
       const priorityTxMaxGasLimit = getNumberFromEnv("CONTRACTS_PRIORITY_TX_MAX_GAS_LIMIT");
       const l1GovernorAddress = await zkSync.getGovernor();
+      console.error("P 3")
       // Check whether governor is a smart contract on L1 to apply alias if needed.
       const l1GovernorCodeSize = ethers.utils.hexDataLength(await deployWallet.provider.getCode(l1GovernorAddress));
+      console.error("P 4")
       const l2GovernorAddress = l1GovernorCodeSize == 0 ? l1GovernorAddress : applyL1ToL2Alias(l1GovernorAddress);
+      console.error("P 5")
       const abiCoder = new ethers.utils.AbiCoder();
 
       const l2ERC20BridgeImplAddr = computeL2Create2Address(
@@ -99,12 +106,13 @@ async function main() {
         "0x",
         ethers.constants.HashZero
       );
-
+      console.error("P 6", l2ERC20BridgeImplAddr)
       const proxyInitializationParams = L2_ERC20_BRIDGE_INTERFACE.encodeFunctionData("initialize", [
         erc20Bridge.address,
         hashL2Bytecode(L2_STANDARD_ERC20_PROXY_BYTECODE),
         l2GovernorAddress,
       ]);
+      console.error("P 7", proxyInitializationParams)
       const l2ERC20BridgeProxyAddr = computeL2Create2Address(
         applyL1ToL2Alias(erc20Bridge.address),
         L2_ERC20_BRIDGE_PROXY_BYTECODE,
@@ -116,35 +124,36 @@ async function main() {
         ),
         ethers.constants.HashZero
       );
-
+      console.error("P 18", l2ERC20BridgeProxyAddr)
       const l2StandardToken = computeL2Create2Address(
         l2ERC20BridgeProxyAddr,
         L2_STANDARD_ERC20_IMPLEMENTATION_BYTECODE,
         "0x",
         ethers.constants.HashZero
       );
+      console.error("P 9", l2StandardToken)
       const l2TokenFactoryAddr = computeL2Create2Address(
         l2ERC20BridgeProxyAddr,
         L2_STANDARD_ERC20_PROXY_FACTORY_BYTECODE,
         ethers.utils.arrayify(abiCoder.encode(["address"], [l2StandardToken])),
         ethers.constants.HashZero
       );
-
+      console.error("P 10", l2TokenFactoryAddr)
       // There will be two deployments done during the initial initialization
       const requiredValueToInitializeBridge = await zkSync.l2TransactionBaseCost(
         gasPrice,
         DEPLOY_L2_BRIDGE_COUNTERPART_GAS_LIMIT,
         REQUIRED_L2_GAS_PRICE_PER_PUBDATA
       );
-
+      console.error("P 11", requiredValueToInitializeBridge)
       const requiredValueToPublishBytecodes = await zkSync.l2TransactionBaseCost(
         gasPrice,
         priorityTxMaxGasLimit,
         REQUIRED_L2_GAS_PRICE_PER_PUBDATA
       );
-
-      const independentInitialization = [
-        zkSync.requestL2Transaction(
+      console.error("P 12", requiredValueToPublishBytecodes)
+      // const independentInitialization = [
+     const tx1=  await  zkSync.requestL2Transaction(
           ethers.constants.AddressZero,
           0,
           "0x",
@@ -153,8 +162,9 @@ async function main() {
           [L2_STANDARD_ERC20_PROXY_FACTORY_BYTECODE, L2_STANDARD_ERC20_IMPLEMENTATION_BYTECODE],
           deployWallet.address,
           { gasPrice, nonce, value: requiredValueToPublishBytecodes }
-        ),
-        erc20Bridge.initialize(
+        )
+      console.log(`Transaction sent with hash ${tx1.hash} and nonce ${tx1.nonce}. Waiting for receipt...`);
+    const tx2=  await  erc20Bridge.initialize(
           [L2_ERC20_BRIDGE_IMPLEMENTATION_BYTECODE, L2_ERC20_BRIDGE_PROXY_BYTECODE, L2_STANDARD_ERC20_PROXY_BYTECODE],
           l2TokenFactoryAddr,
           l2GovernorAddress,
@@ -165,16 +175,15 @@ async function main() {
             nonce: nonce + 1,
             value: requiredValueToInitializeBridge.mul(2),
           }
-        ),
-      ];
+        )
+      // ];
+      console.error("P 13")
+      // const txs = await Promise.all(independentInitialization);
+    
+      console.log(`Transaction sent with hash ${tx2.hash} and nonce ${tx2.nonce}. Waiting for receipt...`);
+      console.error("P 14")
 
-      const txs = await Promise.all(independentInitialization);
-      for (const tx of txs) {
-        console.log(`Transaction sent with hash ${tx.hash} and nonce ${tx.nonce}. Waiting for receipt...`);
-      }
-      const receipts = await Promise.all(txs.map((tx) => tx.wait(2)));
 
-      console.log(`ERC20 bridge initialized, gasUsed: ${receipts[1].gasUsed.toString()}`);
       console.log(`CONTRACTS_L2_ERC20_BRIDGE_ADDR=${await erc20Bridge.l2Bridge()}`);
     });
 

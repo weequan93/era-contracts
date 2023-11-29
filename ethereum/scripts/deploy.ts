@@ -1,12 +1,14 @@
 import { Command } from "commander";
-import { Wallet, ethers } from "ethers";
+import {  ethers } from "ethers";
 import { Deployer } from "../src.ts/deploy";
 import { formatUnits, parseUnits } from "ethers/lib/utils";
 import * as fs from "fs";
 import * as path from "path";
 import { web3Provider } from "./utils";
+import { Provider, Wallet } from "zksync-web3";
+import * as hre from "hardhat";
 
-const provider = web3Provider();
+// const provider = web3Provider();
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, "etc/test_config/constant");
 const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: "utf-8" }));
 
@@ -24,12 +26,16 @@ async function main() {
     .option("--diamond-upgrade-init <version>")
     .option("--only-verifier")
     .action(async (cmd) => {
+      cmd.privateKey = "03c9b93a2534f0b459aeb81726cc8bd6160a16ab869f22f304457cff00318c68"
+      const provider = new Provider((hre.network.config as any).ethNetwork);
+     
       const deployWallet = cmd.privateKey
         ? new Wallet(cmd.privateKey, provider)
         : Wallet.fromMnemonic(
             process.env.MNEMONIC ? process.env.MNEMONIC : ethTestConfig.mnemonic,
             "m/44'/60'/0'/0/1"
           ).connect(provider);
+      console.error("chainid", await deployWallet.getChainId())
       console.log(`Using deployer wallet: ${deployWallet.address}`);
 
       const ownerAddress = cmd.ownerAddress ? cmd.ownerAddress : deployWallet.address;

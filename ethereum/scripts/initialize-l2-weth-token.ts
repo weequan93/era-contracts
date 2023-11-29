@@ -1,13 +1,15 @@
 import { Command } from "commander";
-import { ethers, Wallet } from "ethers";
+import { ethers } from "ethers";
 import { Deployer } from "../src.ts/deploy";
 import { formatUnits, parseUnits } from "ethers/lib/utils";
 import { web3Provider, getNumberFromEnv, getTokens, REQUIRED_L2_GAS_PRICE_PER_PUBDATA } from "./utils";
 
 import * as fs from "fs";
 import * as path from "path";
+import * as hre from "hardhat";
+import { Provider, Wallet } from "zksync-web3";
 
-const provider = web3Provider();
+// const provider = web3Provider();
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, "etc/test_config/constant");
 const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: "utf-8" }));
 
@@ -44,6 +46,7 @@ async function getL1TxInfo(
   refundRecipient: string,
   gasPrice: ethers.BigNumber
 ) {
+  const provider = new Provider((hre.network.config as any).ethNetwork);
   const zksync = deployer.zkSyncContract(ethers.Wallet.createRandom().connect(provider));
   const l1Calldata = zksync.interface.encodeFunctionData("requestL2Transaction", [
     to,
@@ -90,6 +93,7 @@ async function main() {
         return;
       }
 
+      const provider = new Provider((hre.network.config as any).ethNetwork);
       const deployWallet = cmd.privateKey
         ? new Wallet(cmd.privateKey, provider)
         : Wallet.fromMnemonic(
@@ -128,7 +132,7 @@ async function main() {
         console.log("Base Layer WETH address not provided. Skipping.");
         return;
       }
-
+      const provider = new Provider((hre.network.config as any).ethNetwork);
       const deployWallet = cmd.privateKey
         ? new Wallet(cmd.privateKey, provider)
         : Wallet.fromMnemonic(

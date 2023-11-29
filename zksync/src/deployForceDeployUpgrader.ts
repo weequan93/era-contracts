@@ -1,12 +1,13 @@
 import { Command } from "commander";
-import { ethers, Wallet } from "ethers";
+import { ethers } from "ethers";
 import { computeL2Create2Address, create2DeployFromL1, getNumberFromEnv } from "./utils";
 import { web3Provider } from "../../ethereum/scripts/utils";
 import * as fs from "fs";
 import * as path from "path";
 import * as hre from "hardhat";
+import { Provider, Wallet } from "zksync-web3";
 
-const provider = web3Provider();
+// const provider = web3Provider();
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, "etc/test_config/constant");
 const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: "utf-8" }));
 
@@ -24,6 +25,7 @@ async function main() {
     .description("Deploys the force deploy upgrader contract to L2");
 
   program.option("--private-key <private-key>").action(async (cmd: Command) => {
+    const provider = new Provider((hre.network.config as any).ethNetwork);
     const deployWallet = cmd.privateKey
       ? new Wallet(cmd.privateKey, provider)
       : Wallet.fromMnemonic(

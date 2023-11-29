@@ -2,5 +2,13 @@
   "compilerOptions": {
     "types": ["node", "mocha"],
     "downlevelIteration": true
-  }
+  },
+  "include": [
+    "./scripts",
+    "./test",
+    "./typechain-types"
+  ],
+  "files": [
+    "./hardhat.config.ts"
+  ]
 }
