@@ -14,7 +14,7 @@ function verifyPromise(address: string, constructorArguments?: Array<any>, libra
 async function main() {
   if (process.env.CHAIN_ETH_NETWORK == "localhost") {
     console.log("Skip contract verification on localhost");
-    return;
+    // return;
   }
   if (!process.env.MISC_ETHERSCAN_API_KEY) {
     console.log("Skip contract verification given etherscan api key is missing");
